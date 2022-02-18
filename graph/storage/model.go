@@ -1,11 +1,23 @@
 package storage
 
+import "backend-challenge/graph/model"
+
 type Country string
 
 const (
 	ITALY  Country = "ITALY"
 	FRANCE Country = "FRANCE"
 )
+
+func GetCountry(country model.Country) Country {
+	switch country {
+	case model.CountryFrance:
+		return FRANCE
+	case model.CountryItaly:
+		return ITALY
+	}
+	return ""
+}
 
 type Salary struct {
 	ID          uint

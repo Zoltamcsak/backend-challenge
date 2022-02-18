@@ -11,17 +11,19 @@ import (
 
 type Payroll interface {
 	GetPayroll(month, year int, country storage.Country) ([]*model.PayrollSummary, error)
+	SavePayroll(data model.PayrollInput) (int, error)
 }
 
-type UserPayroll struct {
-	store storage.Storage
+type PayrollService struct {
+	store      storage.Storage
+	taxService Tax
 }
 
-func NewPayroll(store storage.Storage) *UserPayroll {
-	return &UserPayroll{store: store}
+func NewPayroll(store storage.Storage, taxService Tax) *PayrollService {
+	return &PayrollService{store: store, taxService: taxService}
 }
 
-func (payroll *UserPayroll) GetPayroll(month, year int, country storage.Country) ([]*model.PayrollSummary, error) {
+func (payroll *PayrollService) GetPayroll(month, year int, country storage.Country) ([]*model.PayrollSummary, error) {
 	salaries, err := payroll.store.GetPayroll(month, year, country)
 	if err != nil {
 		return nil, err
@@ -51,6 +53,39 @@ func (payroll *UserPayroll) GetPayroll(month, year int, country storage.Country)
 		})
 	}
 	return payrollSummary, nil
+}
+
+func (payroll *PayrollService) SavePayroll(data model.PayrollInput) (int, error) {
+	country := storage.GetCountry(data.Country)
+	extraSalary := payroll.taxService.HasExtraSalary(country, data.Month)
+	if extraSalary {
+		data.GrossSalary = data.GrossSalary * 2
+	}
+
+	netSalary, err := payroll.taxService.GetNetSalary(data.GrossSalary, country)
+	if err != nil {
+		netSalary = data.GrossSalary
+	}
+
+	bonus := 0.0
+	if data.Bonus != nil {
+		bonus = *data.Bonus
+	}
+
+	salary := &storage.Salary{
+		Country: country,
+		Net:     netSalary,
+		Gross:   data.GrossSalary,
+		Bonus:   bonus,
+		Month:   data.Month,
+		Year:    data.Year,
+		UserID:  uint(data.UserID),
+	}
+	if err := payroll.store.SaveSalary(salary); err != nil {
+		glog.Errorf("Couldn't save payroll %s", err)
+		return 0, err
+	}
+	return 0, nil
 }
 
 func getTaxes(taxConfig []*storage.TaxConfig) []*model.Tax {

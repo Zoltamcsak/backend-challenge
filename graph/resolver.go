@@ -11,11 +11,11 @@ import (
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	payroll service.Payroll
+	payrollService service.Payroll
 }
 
 // NewResolver returns a Resolver
 func NewResolver(payroll service.Payroll) *Resolver {
-	output := &Resolver{payroll: payroll}
+	output := &Resolver{payrollService: payroll}
 	return output
 }

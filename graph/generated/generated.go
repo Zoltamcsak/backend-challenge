@@ -43,7 +43,7 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		AddPayroll func(childComplexity int, userID int, country model.Country, grossSalary float64, year int, month int, bonus *float64) int
+		AddPayroll func(childComplexity int, data model.PayrollInput) int
 	}
 
 	PayrollSummary struct {
@@ -72,7 +72,7 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	AddPayroll(ctx context.Context, userID int, country model.Country, grossSalary float64, year int, month int, bonus *float64) (int, error)
+	AddPayroll(ctx context.Context, data model.PayrollInput) (int, error)
 }
 type QueryResolver interface {
 	PayrollSummary(ctx context.Context, year int, month int, country model.Country) ([]*model.PayrollSummary, error)
@@ -103,7 +103,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.AddPayroll(childComplexity, args["userId"].(int), args["country"].(model.Country), args["grossSalary"].(float64), args["year"].(int), args["month"].(int), args["bonus"].(*float64)), true
+		return e.complexity.Mutation.AddPayroll(childComplexity, args["data"].(model.PayrollInput)), true
 
 	case "PayrollSummary.bonus":
 		if e.complexity.PayrollSummary.Bonus == nil {
@@ -263,7 +263,16 @@ var sources = []*ast.Source{
 }
 
 type Mutation {
-  addPayroll(userId: Int!, country: Country!, grossSalary: Float!, year: Int!, month: Int!, bonus: Float): Int!
+  addPayroll(data: PayrollInput!): Int!
+}
+
+input PayrollInput {
+  userId: Int!
+  country: Country!
+  grossSalary: Float!
+  year: Int!
+  month: Int!
+  bonus: Float
 }
 
 type PayrollSummary {
@@ -308,60 +317,15 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 func (ec *executionContext) field_Mutation_addPayroll_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 int
-	if tmp, ok := rawArgs["userId"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
-		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+	var arg0 model.PayrollInput
+	if tmp, ok := rawArgs["data"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("data"))
+		arg0, err = ec.unmarshalNPayrollInput2backendᚑchallengeᚋgraphᚋmodelᚐPayrollInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["userId"] = arg0
-	var arg1 model.Country
-	if tmp, ok := rawArgs["country"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("country"))
-		arg1, err = ec.unmarshalNCountry2backendᚑchallengeᚋgraphᚋmodelᚐCountry(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["country"] = arg1
-	var arg2 float64
-	if tmp, ok := rawArgs["grossSalary"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("grossSalary"))
-		arg2, err = ec.unmarshalNFloat2float64(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["grossSalary"] = arg2
-	var arg3 int
-	if tmp, ok := rawArgs["year"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("year"))
-		arg3, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["year"] = arg3
-	var arg4 int
-	if tmp, ok := rawArgs["month"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("month"))
-		arg4, err = ec.unmarshalNInt2int(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["month"] = arg4
-	var arg5 *float64
-	if tmp, ok := rawArgs["bonus"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bonus"))
-		arg5, err = ec.unmarshalOFloat2ᚖfloat64(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["bonus"] = arg5
+	args["data"] = arg0
 	return args, nil
 }
 
@@ -476,7 +440,7 @@ func (ec *executionContext) _Mutation_addPayroll(ctx context.Context, field grap
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().AddPayroll(rctx, args["userId"].(int), args["country"].(model.Country), args["grossSalary"].(float64), args["year"].(int), args["month"].(int), args["bonus"].(*float64))
+		return ec.resolvers.Mutation().AddPayroll(rctx, args["data"].(model.PayrollInput))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2104,6 +2068,69 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputPayrollInput(ctx context.Context, obj interface{}) (model.PayrollInput, error) {
+	var it model.PayrollInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	for k, v := range asMap {
+		switch k {
+		case "userId":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+			it.UserID, err = ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "country":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("country"))
+			it.Country, err = ec.unmarshalNCountry2backendᚑchallengeᚋgraphᚋmodelᚐCountry(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "grossSalary":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("grossSalary"))
+			it.GrossSalary, err = ec.unmarshalNFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "year":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("year"))
+			it.Year, err = ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "month":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("month"))
+			it.Month, err = ec.unmarshalNInt2int(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "bonus":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bonus"))
+			it.Bonus, err = ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -2845,6 +2872,11 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNPayrollInput2backendᚑchallengeᚋgraphᚋmodelᚐPayrollInput(ctx context.Context, v interface{}) (model.PayrollInput, error) {
+	res, err := ec.unmarshalInputPayrollInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNPayrollSummary2ᚖbackendᚑchallengeᚋgraphᚋmodelᚐPayrollSummary(ctx context.Context, sel ast.SelectionSet, v *model.PayrollSummary) graphql.Marshaler {

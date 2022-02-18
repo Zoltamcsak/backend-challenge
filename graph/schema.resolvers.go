@@ -8,15 +8,14 @@ import (
 	"backend-challenge/graph/model"
 	"backend-challenge/graph/storage"
 	"context"
-	"fmt"
 )
 
-func (r *mutationResolver) AddPayroll(ctx context.Context, userID int, country model.Country, grossSalary float64, year int, month int, bonus *float64) (int, error) {
-	panic(fmt.Errorf("not implemented"))
+func (r *mutationResolver) AddPayroll(_ context.Context, data model.PayrollInput) (int, error) {
+	return r.payrollService.SavePayroll(data)
 }
 
 func (r *queryResolver) PayrollSummary(ctx context.Context, year int, month int, country model.Country) ([]*model.PayrollSummary, error) {
-	return r.payroll.GetPayroll(month, year, storage.Country(country.String()))
+	return r.payrollService.GetPayroll(month, year, storage.Country(country.String()))
 }
 
 // Mutation returns generated.MutationResolver implementation.

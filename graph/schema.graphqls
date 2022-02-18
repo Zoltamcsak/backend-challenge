@@ -3,7 +3,16 @@ type Query {
 }
 
 type Mutation {
-  addPayroll(userId: Int!, country: Country!, grossSalary: Float!, year: Int!, month: Int!, bonus: Float): Int!
+  addPayroll(data: PayrollInput!): Int!
+}
+
+input PayrollInput {
+  userId: Int!
+  country: Country!
+  grossSalary: Float!
+  year: Int!
+  month: Int!
+  bonus: Float
 }
 
 type PayrollSummary {

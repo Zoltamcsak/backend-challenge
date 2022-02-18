@@ -8,6 +8,15 @@ import (
 	"strconv"
 )
 
+type PayrollInput struct {
+	UserID      int      `json:"userId"`
+	Country     Country  `json:"country"`
+	GrossSalary float64  `json:"grossSalary"`
+	Year        int      `json:"year"`
+	Month       int      `json:"month"`
+	Bonus       *float64 `json:"bonus"`
+}
+
 type PayrollSummary struct {
 	Gross float64     `json:"gross"`
 	Net   float64     `json:"net"`
