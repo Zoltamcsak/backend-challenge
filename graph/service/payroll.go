@@ -35,7 +35,7 @@ func (payroll *PayrollService) GetPayroll(month, year int, country storage.Count
 	var payrollSummary []*model.PayrollSummary
 	for _, s := range salaries {
 		payrollType := model.PayrollTypeReal
-		payrollTime, _ := time.Parse("2006-01-02", fmt.Sprintf("%d-%d-%d", year, month, 1))
+		payrollTime, _ := time.Parse("2006-1-2", fmt.Sprintf("%d-%d-%d", year, month, 1))
 		if util.IsFutureDate(payrollTime) {
 			payrollType = model.PayrollTypeFuturePreview
 		}
