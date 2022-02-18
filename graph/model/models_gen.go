@@ -9,15 +9,23 @@ import (
 )
 
 type PayrollSummary struct {
-	Gross float64  `json:"gross"`
-	Net   float64  `json:"net"`
-	Bonus *float64 `json:"bonus"`
-	User  *User    `json:"user"`
+	Gross float64     `json:"gross"`
+	Net   float64     `json:"net"`
+	Bonus *float64    `json:"bonus"`
+	Taxes []*Tax      `json:"taxes"`
+	User  *User       `json:"user"`
+	Type  PayrollType `json:"type"`
+}
+
+type Tax struct {
+	Name  string  `json:"name"`
+	Value float64 `json:"value"`
 }
 
 type User struct {
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
+	FirstName         string `json:"firstName"`
+	LastName          string `json:"lastName"`
+	ProfilePictureURL string `json:"profilePictureUrl"`
 }
 
 type Country string
@@ -58,5 +66,46 @@ func (e *Country) UnmarshalGQL(v interface{}) error {
 }
 
 func (e Country) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type PayrollType string
+
+const (
+	PayrollTypeReal          PayrollType = "REAL"
+	PayrollTypeFuturePreview PayrollType = "FUTURE_PREVIEW"
+)
+
+var AllPayrollType = []PayrollType{
+	PayrollTypeReal,
+	PayrollTypeFuturePreview,
+}
+
+func (e PayrollType) IsValid() bool {
+	switch e {
+	case PayrollTypeReal, PayrollTypeFuturePreview:
+		return true
+	}
+	return false
+}
+
+func (e PayrollType) String() string {
+	return string(e)
+}
+
+func (e *PayrollType) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PayrollType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PayrollType", str)
+	}
+	return nil
+}
+
+func (e PayrollType) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
 }

@@ -1,25 +1,39 @@
-# GraphQL schema example
-#
-# https://gqlgen.com/getting-started/
-
 type Query {
   payrollSummary(year: Int!, month: Int!, country: Country!): [PayrollSummary!]
+}
+
+type Mutation {
+  addPayroll(userId: Int!, country: Country!, grossSalary: Float!, year: Int!, month: Int!, bonus: Float): Int!
 }
 
 type PayrollSummary {
   gross: Float!
   net: Float!
   bonus: Float
+  taxes: [Tax!]
   user: User!
+  type: PayrollType!
 }
 
 type User {
   firstName: String!
   lastName: String!
+  profilePictureUrl: String!
+}
+
+# Shows the taxes for a certain country
+type Tax {
+  name: String!
+  # percentage
+  value: Float!
 }
 
 enum Country {
   FRANCE, ITALY
+}
+
+enum PayrollType {
+  REAL, FUTURE_PREVIEW
 }
 
 

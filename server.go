@@ -3,6 +3,7 @@ package main
 import (
 	"backend-challenge/graph"
 	"backend-challenge/graph/generated"
+	"backend-challenge/graph/service"
 	"backend-challenge/graph/storage"
 	"fmt"
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -35,13 +36,13 @@ func main() {
 	}
 
 	store := storage.NewDbStorage(db)
-	db.AutoMigrate(&storage.UserProfile{}, &storage.Salary{})
+	db.AutoMigrate(&storage.UserProfile{}, &storage.Salary{}, &storage.TaxConfig{}, &storage.ExtraSalary{})
 
 	if port == "" {
 		port = defaultPort
 	}
 
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: graph.NewResolver(store)}))
+	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: graph.NewResolver(service.NewPayroll(store))}))
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", srv)

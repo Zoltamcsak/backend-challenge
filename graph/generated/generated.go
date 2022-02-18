@@ -34,6 +34,7 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	Mutation() MutationResolver
 	Query() QueryResolver
 }
 
@@ -41,10 +42,16 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	Mutation struct {
+		AddPayroll func(childComplexity int, userID int, country model.Country, grossSalary float64, year int, month int, bonus *float64) int
+	}
+
 	PayrollSummary struct {
 		Bonus func(childComplexity int) int
 		Gross func(childComplexity int) int
 		Net   func(childComplexity int) int
+		Taxes func(childComplexity int) int
+		Type  func(childComplexity int) int
 		User  func(childComplexity int) int
 	}
 
@@ -52,12 +59,21 @@ type ComplexityRoot struct {
 		PayrollSummary func(childComplexity int, year int, month int, country model.Country) int
 	}
 
+	Tax struct {
+		Name  func(childComplexity int) int
+		Value func(childComplexity int) int
+	}
+
 	User struct {
-		FirstName func(childComplexity int) int
-		LastName  func(childComplexity int) int
+		FirstName         func(childComplexity int) int
+		LastName          func(childComplexity int) int
+		ProfilePictureURL func(childComplexity int) int
 	}
 }
 
+type MutationResolver interface {
+	AddPayroll(ctx context.Context, userID int, country model.Country, grossSalary float64, year int, month int, bonus *float64) (int, error)
+}
 type QueryResolver interface {
 	PayrollSummary(ctx context.Context, year int, month int, country model.Country) ([]*model.PayrollSummary, error)
 }
@@ -76,6 +92,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "Mutation.addPayroll":
+		if e.complexity.Mutation.AddPayroll == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addPayroll_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.AddPayroll(childComplexity, args["userId"].(int), args["country"].(model.Country), args["grossSalary"].(float64), args["year"].(int), args["month"].(int), args["bonus"].(*float64)), true
 
 	case "PayrollSummary.bonus":
 		if e.complexity.PayrollSummary.Bonus == nil {
@@ -98,6 +126,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.PayrollSummary.Net(childComplexity), true
 
+	case "PayrollSummary.taxes":
+		if e.complexity.PayrollSummary.Taxes == nil {
+			break
+		}
+
+		return e.complexity.PayrollSummary.Taxes(childComplexity), true
+
+	case "PayrollSummary.type":
+		if e.complexity.PayrollSummary.Type == nil {
+			break
+		}
+
+		return e.complexity.PayrollSummary.Type(childComplexity), true
+
 	case "PayrollSummary.user":
 		if e.complexity.PayrollSummary.User == nil {
 			break
@@ -117,6 +159,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.PayrollSummary(childComplexity, args["year"].(int), args["month"].(int), args["country"].(model.Country)), true
 
+	case "Tax.name":
+		if e.complexity.Tax.Name == nil {
+			break
+		}
+
+		return e.complexity.Tax.Name(childComplexity), true
+
+	case "Tax.value":
+		if e.complexity.Tax.Value == nil {
+			break
+		}
+
+		return e.complexity.Tax.Value(childComplexity), true
+
 	case "User.firstName":
 		if e.complexity.User.FirstName == nil {
 			break
@@ -130,6 +186,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.User.LastName(childComplexity), true
+
+	case "User.profilePictureUrl":
+		if e.complexity.User.ProfilePictureURL == nil {
+			break
+		}
+
+		return e.complexity.User.ProfilePictureURL(childComplexity), true
 
 	}
 	return 0, false
@@ -148,6 +211,20 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			}
 			first = false
 			data := ec._Query(ctx, rc.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
 			var buf bytes.Buffer
 			data.MarshalGQL(&buf)
 
@@ -181,28 +258,42 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
-	{Name: "graph/schema.graphqls", Input: `# GraphQL schema example
-#
-# https://gqlgen.com/getting-started/
-
-type Query {
+	{Name: "graph/schema.graphqls", Input: `type Query {
   payrollSummary(year: Int!, month: Int!, country: Country!): [PayrollSummary!]
+}
+
+type Mutation {
+  addPayroll(userId: Int!, country: Country!, grossSalary: Float!, year: Int!, month: Int!, bonus: Float): Int!
 }
 
 type PayrollSummary {
   gross: Float!
   net: Float!
   bonus: Float
+  taxes: [Tax!]
   user: User!
+  type: PayrollType!
 }
 
 type User {
   firstName: String!
   lastName: String!
+  profilePictureUrl: String!
+}
+
+# Shows the taxes for a certain country
+type Tax {
+  name: String!
+  # percentage
+  value: Float!
 }
 
 enum Country {
   FRANCE, ITALY
+}
+
+enum PayrollType {
+  REAL, FUTURE_PREVIEW
 }
 
 
@@ -213,6 +304,66 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_addPayroll_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 int
+	if tmp, ok := rawArgs["userId"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+		arg0, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["userId"] = arg0
+	var arg1 model.Country
+	if tmp, ok := rawArgs["country"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("country"))
+		arg1, err = ec.unmarshalNCountry2backendᚑchallengeᚋgraphᚋmodelᚐCountry(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["country"] = arg1
+	var arg2 float64
+	if tmp, ok := rawArgs["grossSalary"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("grossSalary"))
+		arg2, err = ec.unmarshalNFloat2float64(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["grossSalary"] = arg2
+	var arg3 int
+	if tmp, ok := rawArgs["year"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("year"))
+		arg3, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["year"] = arg3
+	var arg4 int
+	if tmp, ok := rawArgs["month"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("month"))
+		arg4, err = ec.unmarshalNInt2int(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["month"] = arg4
+	var arg5 *float64
+	if tmp, ok := rawArgs["bonus"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bonus"))
+		arg5, err = ec.unmarshalOFloat2ᚖfloat64(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["bonus"] = arg5
+	return args, nil
+}
 
 func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -299,6 +450,48 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 // endregion ************************** directives.gotpl **************************
 
 // region    **************************** field.gotpl *****************************
+
+func (ec *executionContext) _Mutation_addPayroll(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_addPayroll_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().AddPayroll(rctx, args["userId"].(int), args["country"].(model.Country), args["grossSalary"].(float64), args["year"].(int), args["month"].(int), args["bonus"].(*float64))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int)
+	fc.Result = res
+	return ec.marshalNInt2int(ctx, field.Selections, res)
+}
 
 func (ec *executionContext) _PayrollSummary_gross(ctx context.Context, field graphql.CollectedField, obj *model.PayrollSummary) (ret graphql.Marshaler) {
 	defer func() {
@@ -402,6 +595,38 @@ func (ec *executionContext) _PayrollSummary_bonus(ctx context.Context, field gra
 	return ec.marshalOFloat2ᚖfloat64(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _PayrollSummary_taxes(ctx context.Context, field graphql.CollectedField, obj *model.PayrollSummary) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "PayrollSummary",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Taxes, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Tax)
+	fc.Result = res
+	return ec.marshalOTax2ᚕᚖbackendᚑchallengeᚋgraphᚋmodelᚐTaxᚄ(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _PayrollSummary_user(ctx context.Context, field graphql.CollectedField, obj *model.PayrollSummary) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -435,6 +660,41 @@ func (ec *executionContext) _PayrollSummary_user(ctx context.Context, field grap
 	res := resTmp.(*model.User)
 	fc.Result = res
 	return ec.marshalNUser2ᚖbackendᚑchallengeᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _PayrollSummary_type(ctx context.Context, field graphql.CollectedField, obj *model.PayrollSummary) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "PayrollSummary",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Type, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.PayrollType)
+	fc.Result = res
+	return ec.marshalNPayrollType2backendᚑchallengeᚋgraphᚋmodelᚐPayrollType(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_payrollSummary(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -547,6 +807,76 @@ func (ec *executionContext) _Query___schema(ctx context.Context, field graphql.C
 	return ec.marshalO__Schema2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐSchema(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Tax_name(ctx context.Context, field graphql.CollectedField, obj *model.Tax) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Tax",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Name, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Tax_value(ctx context.Context, field graphql.CollectedField, obj *model.Tax) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Tax",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Value, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _User_firstName(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -601,6 +931,41 @@ func (ec *executionContext) _User_lastName(ctx context.Context, field graphql.Co
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
 		return obj.LastName, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_profilePictureUrl(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ProfilePictureURL, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1747,6 +2112,46 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** object.gotpl ****************************
 
+var mutationImplementors = []string{"Mutation"}
+
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
+			Object: field.Name,
+			Field:  field,
+		})
+
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "addPayroll":
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addPayroll(ctx, field)
+			}
+
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, innerFunc)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var payrollSummaryImplementors = []string{"PayrollSummary"}
 
 func (ec *executionContext) _PayrollSummary(ctx context.Context, sel ast.SelectionSet, obj *model.PayrollSummary) graphql.Marshaler {
@@ -1784,9 +2189,26 @@ func (ec *executionContext) _PayrollSummary(ctx context.Context, sel ast.Selecti
 
 			out.Values[i] = innerFunc(ctx)
 
+		case "taxes":
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._PayrollSummary_taxes(ctx, field, obj)
+			}
+
+			out.Values[i] = innerFunc(ctx)
+
 		case "user":
 			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._PayrollSummary_user(ctx, field, obj)
+			}
+
+			out.Values[i] = innerFunc(ctx)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "type":
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._PayrollSummary_type(ctx, field, obj)
 			}
 
 			out.Values[i] = innerFunc(ctx)
@@ -1869,6 +2291,47 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
+var taxImplementors = []string{"Tax"}
+
+func (ec *executionContext) _Tax(ctx context.Context, sel ast.SelectionSet, obj *model.Tax) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, taxImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Tax")
+		case "name":
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Tax_name(ctx, field, obj)
+			}
+
+			out.Values[i] = innerFunc(ctx)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "value":
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Tax_value(ctx, field, obj)
+			}
+
+			out.Values[i] = innerFunc(ctx)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var userImplementors = []string{"User"}
 
 func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *model.User) graphql.Marshaler {
@@ -1892,6 +2355,16 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 		case "lastName":
 			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._User_lastName(ctx, field, obj)
+			}
+
+			out.Values[i] = innerFunc(ctx)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "profilePictureUrl":
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._User_profilePictureUrl(ctx, field, obj)
 			}
 
 			out.Values[i] = innerFunc(ctx)
@@ -2384,6 +2857,16 @@ func (ec *executionContext) marshalNPayrollSummary2ᚖbackendᚑchallengeᚋgrap
 	return ec._PayrollSummary(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNPayrollType2backendᚑchallengeᚋgraphᚋmodelᚐPayrollType(ctx context.Context, v interface{}) (model.PayrollType, error) {
+	var res model.PayrollType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPayrollType2backendᚑchallengeᚋgraphᚋmodelᚐPayrollType(ctx context.Context, sel ast.SelectionSet, v model.PayrollType) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
 	res, err := graphql.UnmarshalString(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -2397,6 +2880,16 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNTax2ᚖbackendᚑchallengeᚋgraphᚋmodelᚐTax(ctx context.Context, sel ast.SelectionSet, v *model.Tax) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Tax(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNUser2ᚖbackendᚑchallengeᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
@@ -2775,6 +3268,53 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	}
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOTax2ᚕᚖbackendᚑchallengeᚋgraphᚋmodelᚐTaxᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Tax) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNTax2ᚖbackendᚑchallengeᚋgraphᚋmodelᚐTax(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

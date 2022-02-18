@@ -10,6 +10,7 @@ const (
 type Salary struct {
 	ID          uint
 	Gross       float64
+	Net         float64
 	Country     Country
 	Bonus       float64
 	Month       int
@@ -24,4 +25,17 @@ type UserProfile struct {
 	LastName          string
 	ProfilePictureUrl string
 	Salaries          []Salary `gorm:"foreignKey:UserID"`
+}
+
+type TaxConfig struct {
+	ID                 uint
+	Country            Country
+	TaxName            string
+	TaxPercentageValue float64
+}
+
+type ExtraSalary struct {
+	ID      uint
+	Country Country
+	Month   int
 }

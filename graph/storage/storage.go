@@ -7,6 +7,7 @@ import (
 
 type Storage interface {
 	GetPayroll(month, year int, country Country) ([]*Salary, error)
+	GetTaxConfig(country Country) ([]*TaxConfig, error)
 }
 
 func (d *DbStorage) GetPayroll(month, year int, country Country) ([]*Salary, error) {
@@ -17,6 +18,16 @@ func (d *DbStorage) GetPayroll(month, year int, country Country) ([]*Salary, err
 		return nil, tx.Error
 	}
 	return salaries, nil
+}
+
+func (d *DbStorage) GetTaxConfig(country Country) ([]*TaxConfig, error) {
+	var taxConfig []*TaxConfig
+	tx := d.db.Where("country=?", country).Find(&taxConfig)
+	if tx.Error != nil {
+		glog.Errorf("Error fetching tax config %s", tx.Error)
+		return nil, tx.Error
+	}
+	return taxConfig, nil
 }
 
 // DbStorage implements the Storage methods in memory as golang maps
