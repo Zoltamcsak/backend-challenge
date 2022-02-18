@@ -2,27 +2,24 @@
 #
 # https://gqlgen.com/getting-started/
 
-type Todo {
-  id: ID!
-  text: String!
-  done: Boolean!
+type Query {
+  payrollSummary(year: Int!, month: Int!, country: Country!): [PayrollSummary!]
+}
+
+type PayrollSummary {
+  gross: Float!
+  net: Float!
+  bonus: Float
   user: User!
 }
 
 type User {
-  id: ID!
-  name: String!
+  firstName: String!
+  lastName: String!
 }
 
-type Query {
-  todos: [Todo!]!
+enum Country {
+  FRANCE, ITALY
 }
 
-input NewTodo {
-  text: String!
-  userId: String!
-}
 
-type Mutation {
-  createTodo(input: NewTodo!): Todo!
-}

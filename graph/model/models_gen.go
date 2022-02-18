@@ -2,19 +2,61 @@
 
 package model
 
-type NewTodo struct {
-	Text   string `json:"text"`
-	UserID string `json:"userId"`
-}
+import (
+	"fmt"
+	"io"
+	"strconv"
+)
 
-type Todo struct {
-	ID   string `json:"id"`
-	Text string `json:"text"`
-	Done bool   `json:"done"`
-	User *User  `json:"user"`
+type PayrollSummary struct {
+	Gross float64  `json:"gross"`
+	Net   float64  `json:"net"`
+	Bonus *float64 `json:"bonus"`
+	User  *User    `json:"user"`
 }
 
 type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+}
+
+type Country string
+
+const (
+	CountryFrance Country = "FRANCE"
+	CountryItaly  Country = "ITALY"
+)
+
+var AllCountry = []Country{
+	CountryFrance,
+	CountryItaly,
+}
+
+func (e Country) IsValid() bool {
+	switch e {
+	case CountryFrance, CountryItaly:
+		return true
+	}
+	return false
+}
+
+func (e Country) String() string {
+	return string(e)
+}
+
+func (e *Country) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = Country(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid Country", str)
+	}
+	return nil
+}
+
+func (e Country) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }

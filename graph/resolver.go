@@ -1,5 +1,7 @@
 package graph
 
+//go:generate go run github.com/99designs/gqlgen
+
 import "backend-challenge/graph/storage"
 
 // This file will not be regenerated automatically.

@@ -1,7 +1,6 @@
 package main
 
 import (
-	db2 "backend-challenge/db"
 	"backend-challenge/graph"
 	"backend-challenge/graph/generated"
 	"backend-challenge/graph/storage"
@@ -13,9 +12,10 @@ import (
 	"os"
 
 	"github.com/golang/glog"
-	"github.com/jmoiron/sqlx"
 	_ "github.com/joho/godotenv/autoload"
 	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 var (
@@ -28,19 +28,14 @@ var (
 )
 
 func main() {
-	db, err := sqlx.Connect(
-		"postgres",
-		fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable", host, user, pass, dbName),
-	)
+	db, err := gorm.Open(postgres.Open(fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable", host, user, pass, dbName)),
+		&gorm.Config{})
 	if err != nil {
 		glog.Fatal("Couldn't connect to database", err)
 	}
-	db.SetMaxOpenConns(50)
 
-	if err := db2.DoMigrations(db.DB); err != nil {
-		glog.Fatal("Couldn't do db migration", err)
-	}
 	store := storage.NewDbStorage(db)
+	db.AutoMigrate(&storage.UserProfile{}, &storage.Salary{})
 
 	if port == "" {
 		port = defaultPort
