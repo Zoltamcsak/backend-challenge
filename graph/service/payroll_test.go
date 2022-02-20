@@ -49,9 +49,9 @@ func (ms *MockStorage) GetExtraSalary(c storage.Country, _ int) (*storage.ExtraS
 	return nil, nil
 }
 
-func (ms *MockStorage) SaveSalary(s *storage.Salary) error {
+func (ms *MockStorage) SaveSalary(s *storage.Salary) (uint, error) {
 	ms.savedSalary = s
-	return nil
+	return 0, nil
 }
 
 func (t *MockTaxService) GetNetSalary(_ float64, _ storage.Country) (float64, error) {

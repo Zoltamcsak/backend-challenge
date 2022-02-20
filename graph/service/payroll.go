@@ -81,11 +81,12 @@ func (payroll *PayrollService) SavePayroll(data model.PayrollInput) (int, error)
 		Year:    data.Year,
 		UserID:  uint(data.UserID),
 	}
-	if err := payroll.store.SaveSalary(salary); err != nil {
+	id, err := payroll.store.SaveSalary(salary)
+	if err != nil {
 		glog.Errorf("Couldn't save payroll %s", err)
-		return 0, err
+		return int(id), err
 	}
-	return 0, nil
+	return int(id), nil
 }
 
 func getTaxes(taxConfig []*storage.TaxConfig) []*model.Tax {

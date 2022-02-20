@@ -9,7 +9,7 @@ type Storage interface {
 	GetPayroll(month, year int, country Country) ([]*Salary, error)
 	GetTaxConfig(country Country) ([]*TaxConfig, error)
 	GetExtraSalary(country Country, month int) (*ExtraSalary, error)
-	SaveSalary(salary *Salary) error
+	SaveSalary(salary *Salary) (uint, error)
 }
 
 func (d *DbStorage) GetPayroll(month, year int, country Country) ([]*Salary, error) {
@@ -32,12 +32,13 @@ func (d *DbStorage) GetTaxConfig(country Country) ([]*TaxConfig, error) {
 	return taxConfig, nil
 }
 
-func (d *DbStorage) SaveSalary(salary *Salary) error {
+func (d *DbStorage) SaveSalary(salary *Salary) (uint, error) {
 	tx := d.db.Save(salary)
 	if tx.Error != nil {
-		return tx.Error
+		return 0, tx.Error
 	}
-	return nil
+	result := tx.Statement.Model.(*Salary)
+	return result.ID, nil
 }
 
 func (d *DbStorage) GetExtraSalary(country Country, month int) (*ExtraSalary, error) {
