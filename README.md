@@ -1,5 +1,40 @@
 # Pento Backend challenge
 
+## Running the project
+
+In order to run the project there should be a running Postgres database with name `payroll`.
+In the `.env` file there are the config values.
+
+Using the `go run server.go` the project can be run. To have initial data in the database you can run the sql script from the `scripts/add_data.sql`.
+
+The following query returns a payroll summary for the specified year, month and country:
+```
+query {
+  payrollSummary(year: 2021, month: 11, country: ITALY) {
+    gross
+    net
+    bonus
+    taxes {
+      name
+      value
+    }
+    type
+    user {
+      firstName
+    }
+  }
+}
+```
+
+The following mutation saves the payroll in the database:
+
+```
+mutation {
+  addPayroll(data: {userId: 1, country: ITALY, grossSalary: 5500, year: 2021, month: 8, bonus: 500})
+}
+```
+
+## Project description
 The company Pento wants to automate the payroll calculation for its employees.
 
 Each employee has a yearly gross salary, and on top of that, the company can give a net monthly bonus at his discretion.
